@@ -24,6 +24,7 @@ from ..table import\
 from .decode import\
     _select_doc,\
     _score_predictions,\
+    _write_predictions,\
     _args_to_decoder_config
 
 
@@ -103,7 +104,11 @@ def config_argparser(psr):
                      default=False, action="store_true",
                      help="force unlabelled evaluation, even if the "
                      "prediction is made with relations")
-
+    psr.add_argument("--output", "-o",
+                     default=None,
+                     required=False,
+                     metavar="DIR",
+                     help="save predicted structures here")
 
 def main(args):
     phrasebook = args_to_phrasebook(args)
@@ -172,13 +177,21 @@ def main(args):
                 doc_attach, doc_relate =\
                     _select_doc(config, onedoc, attach, relate)
                 predicted = decode(config, decoder, doc_attach, doc_relate,nbest=args.nbest,)
-
+                #_write_predictions(config, onedoc, predicted, doc_attach, args.output)
+                
                 score_doc_relate = doc_relate if score_labels else None
-                fold_evals.append(_score_predictions(config,
-                                                     doc_attach,
-                                                     score_doc_relate,
-                                                     predicted,
-                                                     nbest=args.nbest,))
+                doc_score = _score_predictions(config,
+                                               doc_attach,
+                                               score_doc_relate,
+                                               predicted,
+                                               nbest=args.nbest,)
+                fold_evals.append(doc_score)
+                # untested
+                if args.output: 
+                    if args.nbest==1:
+                        _write_predictions(config, onedoc, predicted, doc_attach, args.output)
+                    else:#get the damn best, oracle ! for now, just the same as astar -> first solution to come out
+                        _write_predictions(config, onedoc, predicted[0], doc_attach, args.output)
 
         fold_report = Report(fold_evals,
                              params=args,
