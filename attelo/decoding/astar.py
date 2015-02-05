@@ -126,6 +126,31 @@ class RfcConstraint(Enum):
             raise ArgumentTypeError(oops.format(string, choices))
 # pylint: enable=no-init
 
+class AstarStrategy(Enum):
+    """
+    What sort of  to apply during decoding:
+
+        * simple:
+        * intra: intra-sentence level first 
+    """
+    simple = 1
+    intra = 2
+    none = 3
+
+    @classmethod
+    def from_string(cls, string):
+        "command line arg to AstarStrategy"
+        names = {x.name: x for x in cls}
+        strat = names.get(string)
+        if strat is not None:
+            return strat
+        else:
+            oops = "invalid choice: {}, choose from {}"
+            choices = ", ".join('{}'.format(x) for x in names)
+            raise ArgumentTypeError(oops.format(string, choices))
+
+# pylint: enable=no-init
+
 
 class DiscData(object):
     """
@@ -489,6 +514,7 @@ class AstarArgs(namedtuple('AstarArgs',
                             'rfc',
                             'beam',
                             'nbest',
+                            'strategy',
                             'use_prob'])):
     """
     Configuration options for the A* decoder
@@ -506,16 +532,20 @@ class AstarArgs(namedtuple('AstarArgs',
 
     :param rfc: what sort of right frontier constraint to apply
     :type rfc: RfcConstraint
+
+    :param strategy: what sort of decoding strategy is applied: simple, intra-sentence first
+    :type strategy
     """
     def __new__(cls,
                 heuristics=Heuristic.zero,
                 beam=None,
                 rfc=RfcConstraint.simple,
                 use_prob=True,
+                strategy=AstarStrategy.intra,
                 nbest=1):
         return super(AstarArgs, cls).__new__(cls,
                                              heuristics, rfc,
-                                             beam, nbest, use_prob)
+                                             beam, nbest, strategy, use_prob)
 # pylint: enable=too-many-arguments
 
 
@@ -554,8 +584,8 @@ class AstarDecoder(Decoder):
     def __init__(self, astar_args):
         self._heuristic = HEURISTICS[astar_args.heuristics]
         self._args = astar_args
-        # apply intra/inter sentence model
-        self._bimodel = True
+        # apply intra/inter sentence model is in args.strategy
+        
 
     def decode(self, prob_distrib):
         probs = get_prob_map(prob_distrib)
@@ -570,7 +600,7 @@ class AstarDecoder(Decoder):
             astar = DiscourseBeamSearch(heuristic=self._heuristic,
                                         shared=search_shared,
                                         queue_size=self._args.beam)
-        elif self._bimodel:
+        elif self._args.strategy==AstarStrategy.intra:
             # launch a decoder per sentence
             #   - sent parses collect separate parses
             #   - to_link will collect admissible edus for document level attachmt 
@@ -597,7 +627,7 @@ class AstarDecoder(Decoder):
             genall = astar.launch(DiscData(accessible=[edus[0]], tolink=edus[1:]),
                                   norepeat=True, verbose=False)
         # this should be ventilated above. here for easier testing for now
-        if self._bimodel:
+        if self._args.strategy==AstarStrategy.intra: 
             # recombine sub parses:
             print("nbest=1 (forced), intra/inter sentence model", file=sys.stderr)
             # option (1) : do nothing, leave sentence separate
