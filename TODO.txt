@@ -1,0 +1,13 @@
+
+INTRA-SENTENCE model
+=====================
+* attelo/cmd/evaluate: 
+- models for inter/intra sentence (142, 
+* attelo/args:
+- load/save models
+
+* attelo/decoding
+DataAndModel -> store data,model in named tuple
+
+* attelo/args
+args_to_learners
