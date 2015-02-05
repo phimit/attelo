@@ -23,7 +23,7 @@ from enum import Enum
 
 from attelo.optimisation.astar import State, Search, BeamSearch
 from .interface import Decoder
-from .util import get_sorted_edus, get_prob_map
+from .util import get_sorted_edus, get_prob_map, order_by_sentence
 
 # pylint: disable=too-few-public-methods
 
@@ -244,6 +244,9 @@ class DiscourseState(State):
                                              cost=0,
                                              future_cost=heuristics(self))
 
+
+    def data(self):
+        return self._data
 
     def proba(self, edu_pair):
         """return the label and probability that an edu pair are attached,
@@ -551,12 +554,14 @@ class AstarDecoder(Decoder):
     def __init__(self, astar_args):
         self._heuristic = HEURISTICS[astar_args.heuristics]
         self._args = astar_args
+        # apply intra/inter sentence model
+        self._bimodel = True
 
     def decode(self, prob_distrib):
         probs = get_prob_map(prob_distrib)
-        edus = [x.id for x in get_sorted_edus(prob_distrib)]
+        sorted_edus = get_sorted_edus(prob_distrib)
+        edus = [x.id for x in sorted_edus]
         print("\t %s nodes to attach"%(len(edus)-1), file=sys.stderr)
-
         search_shared = {"probs": probs,
                          "use_prob": self._args.use_prob,
                          "heuristics": preprocess_heuristics(prob_distrib),
@@ -565,16 +570,55 @@ class AstarDecoder(Decoder):
             astar = DiscourseBeamSearch(heuristic=self._heuristic,
                                         shared=search_shared,
                                         queue_size=self._args.beam)
+        elif self._bimodel:
+            # launch a decoder per sentence
+            #   - sent parses collect separate parses
+            #   - to_link will collect admissible edus for document level attachmt 
+            #     (head parses for now=first edu of sentence)
+            #   - accessible will collect sentence sub-edus that are legit as targets for attachmts but are not
+            #     to be linked (eg, last edu of a sentence, or right-frontier-constraint
+            sent_parses = []
+            to_link = []
+            accessible = []
+            for (i,sent) in enumerate(order_by_sentence(sorted_edus)):
+                print("doing sentence %d"%(i+1), file=sys.stderr)
+                astar = DiscourseSearch(heuristic=self._heuristic,
+                                    shared=search_shared)
+                genall = astar.launch(DiscData(accessible=[sent[0]], tolink=sent[1:]),
+                                  norepeat=True, verbose=False)
+                endstate = genall.next()
+                sol = astar.recover_solution(endstate)
+                sent_parses.extend(sol)
+                to_link.append(sent[0])
+                accessible.extend(endstate.data().accessible())
         else:
             astar = DiscourseSearch(heuristic=self._heuristic,
                                     shared=search_shared)
             genall = astar.launch(DiscData(accessible=[edus[0]], tolink=edus[1:]),
                                   norepeat=True, verbose=False)
-        # nbest solutions handling
-        all_solutions = []
-        for _ in range(self._args.nbest):
+        # this should be ventilated above. here for easier testing for now
+        if self._bimodel:
+            # recombine sub parses:
+            print("nbest=1 (forced), intra/inter sentence model", file=sys.stderr)
+            # option (1) : do nothing, leave sentence separate
+            #all_solutions = [sent_parses]
+            # option (2) : astar parse based on sentence heads 
+            astar = DiscourseSearch(heuristic=self._heuristic,
+                                    shared=search_shared)
+            genall = astar.launch(DiscData(accessible=[to_link[0]], tolink=to_link[1:]),
+                                  norepeat=True, verbose=False)
             endstate = genall.next()
             sol = astar.recover_solution(endstate)
-            all_solutions.append(sol)
+            all_solutions = [sol+sent_parses]
+            # option (3) : add RFC nodes to accessibles
+            # TBD
+        else:# nbest solutions handling
+            all_solutions = []
             print("nbest=%d" % self._args.nbest, file=sys.stderr)
+            for i in range(self._args.nbest):
+                endstate = genall.next()
+                sol = astar.recover_solution(endstate)
+                all_solutions.append(sol)
+                print("solution number %d "%(i+1), file=sys.stderr)
+                #print("solution=%s" % sol, file=sys.stderr)
         return all_solutions
