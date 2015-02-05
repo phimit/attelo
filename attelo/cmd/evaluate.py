@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 import itertools
+import json
 import sys
 
 from ..args import\
@@ -110,6 +111,8 @@ def main(args):
     attach_learner, relation_learner = \
         args_to_learners(decoder, phrasebook, args)
 
+    RECALL_CORRECTION = args.correction
+
     fold_struct, selection =\
         _prepare_folds(phrasebook, args.nfold, data_attach,
                        shuffle=args.shuffle)
@@ -127,6 +130,9 @@ def main(args):
         print(">>> doing fold ", test_fold + 1, file=sys.stderr)
         print(">>> training ... ", file=sys.stderr)
 
+        train_data_attach = data_attach.select_ref(selection,
+                                                   test_fold,
+                                                   negate=1)
         # train model
         # TODO: separate models for intra-sentence/inter-sentence
         attach = _build_model_for_fold(selection,

@@ -25,13 +25,13 @@ HARNESS="attelo evaluate -C annodis.config"
 
 LEARNERS="bayes"
 # maxent"
-#DECODERS="mst"
+DECODERS="mst"
 #DECODERS="local last mst astar"
 #DECODERS="locallyGreedy"
 #DECODERS="last local"
-DECODERS="local astar"
-DECODERS="local beam locallyGreedy mst"
-DECODERS="nbest"
+#DECODERS="local astar"
+#DECODERS="local beam locallyGreedy mst"
+#DECODERS="nbest"
 
 BEAM_SIZE=1
 NBEST=20
