@@ -605,6 +605,7 @@ class AstarDecoder(Decoder):
             #   - sent parses collect separate parses
             #   - to_link will collect admissible edus for document level attachmt 
             #     (head parses for now=first edu of sentence)
+
             #   - accessible will collect sentence sub-edus that are legit as targets for attachmts but are not
             #     to be linked (eg, last edu of a sentence, or right-frontier-constraint
             sent_parses = []
@@ -620,6 +621,7 @@ class AstarDecoder(Decoder):
                 sol = astar.recover_solution(endstate)
                 sent_parses.extend(sol)
                 to_link.append(sent[0])
+                # TODO: check that last edu is in it ...
                 accessible.extend(endstate.data().accessible())
         else:
             astar = DiscourseSearch(heuristic=self._heuristic,
@@ -635,7 +637,10 @@ class AstarDecoder(Decoder):
             # option (2) : astar parse based on sentence heads 
             astar = DiscourseSearch(heuristic=self._heuristic,
                                     shared=search_shared)
-            genall = astar.launch(DiscData(accessible=[to_link[0]], tolink=to_link[1:]),
+            # only sentence heads are linked and accessible
+            #genall = astar.launch(DiscData(accessible=[to_link[0]], tolink=to_link[1:]),
+            # sentence heads + RFC accessbile -> TODO: RFC accessible should be restrainded to inter-sentence ?
+            genall = astar.launch(DiscData(accessible=[to_link[0]]+accessible, tolink=to_link[1:]),
                                   norepeat=True, verbose=False)
             endstate = genall.next()
             sol = astar.recover_solution(endstate)
