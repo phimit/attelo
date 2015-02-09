@@ -281,7 +281,7 @@ def args_to_decoder(args):
 
     config = DecoderArgs(threshold=args.threshold,
                          astar=astar_args,
-                         use_prob=args.use_prob)
+                         use_prob=not args.non_prob_scores)
 
     _decoders = _known_decoders()
 
@@ -315,7 +315,7 @@ def args_to_learners(decoder, phrasebook, args):
 
     perc_args = PerceptronArgs(iterations=args.nit,
                                averaging=args.averaging,
-                               use_prob=args.use_prob,
+                               use_prob=not args.non_prob_scores,
                                aggressiveness=args.aggressiveness)
     _learners = _known_learners(decoder, phrasebook, perc_args)
 
@@ -467,11 +467,10 @@ def _add_decoder_args(psr):
                            "default: 1-best = simple astar")
 
     perc_grp = psr.add_argument_group('perceptron arguments')
-    perc_grp.add_argument("--use_prob", "-P",
-                          default=DEFAULT_PERCEPTRON_ARGS.use_prob,
-                          action="store_false",
-                          help="convert perceptron scores "
-                          "into probabilities")
+    perc_grp.add_argument("--non-prob-scores",
+                          default=not DEFAULT_PERCEPTRON_ARGS.use_prob,
+                          action="store_true",
+                          help="do NOT treat scores as probabilities")
 
     # harness prefs (shared between eval)
     psr.add_argument("--post-label", "-p",

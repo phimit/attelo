@@ -35,3 +35,7 @@ The output above corresponds to the graph below ::
                   | elaboration          | narration
                   V                      V
                 d1_493 <---[result]-- d1_494
+
+
+You can visualise the results with the `attelo report` (see :doc:`report`) and
+attelo graph commands

@@ -9,6 +9,7 @@ import sys
 
 import pydot
 
+from .util import (get_output_dir, announce_output_dir)
 from ..edu import FAKE_ROOT_ID
 from ..io import load_edus, load_predictions
 from ..table import UNRELATED
@@ -61,7 +62,9 @@ def _build_core_graph(title, edus):
             continue
         attrs = {'shape': 'plaintext'}
         if edu.text:
-            attrs['label'] = edu.text
+            # we add a space to force pydot to quote this
+            # (its need-to-quote detector isn't always reliable)
+            attrs['label'] = edu.text + ' '
         graph.add_node(pydot.Node(edu.id, **attrs))
     return graph
 
@@ -96,7 +99,7 @@ def config_argparser(psr):
                      help="attelo edu input file")
     psr.add_argument("predictions", metavar="FILE",
                      help="attelo predictions file")
-    psr.add_argument("output", metavar="DIR",
+    psr.add_argument("--output", metavar="DIR",
                      help="output directory for graphs")
     psr.add_argument("--unrelated",
                      action='store_true',
@@ -112,14 +115,18 @@ def main_for_harness(args):
     You have to supply (and filter) the data yourself
     (see `select_data`)
     """
+    output_dir = get_output_dir(args)
     edus = load_edus(args.edus)
     links = load_predictions(args.predictions)
     for group, subedus_ in groupby(edus, lambda x: x.grouping):
         subedus = list(subedus_)
         sublinks = select_links(subedus, links)
+        if not sublinks:  # not in fold
+            continue
         graph = to_graph(group, subedus, sublinks, unrelated=args.unrelated)
-        ofilename = fp.join(args.output, group)
+        ofilename = fp.join(output_dir, group)
         write_dot_graph(ofilename, graph)
+    announce_output_dir(output_dir)
 
 
 def main(args):

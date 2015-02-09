@@ -8,6 +8,10 @@ Configuring the harness
 import argparse
 from collections import namedtuple
 
+from attelo.util import Team
+
+# pylint: disable=too-few-public-methods
+
 
 # pylint: disable=abstract-class-not-used
 class CliArgs(argparse.Namespace):
@@ -46,7 +50,6 @@ class CliArgs(argparse.Namespace):
         """
         raise NotImplementedError()
 
-
     def argv(self):
         """
         Command line arguments that would correspond to this
@@ -73,48 +76,76 @@ class CliArgs(argparse.Namespace):
         return
 
 
-# pylint: disable=pointless-string-statement, too-few-public-methods
-class LearnerConfig(object):
+class Variant(namedtuple("Variant", "key name flags")):
     """
-    Unique combination of learner settings.
+    Unique combination of settings for either a learner or
+    decoder
 
-    It is crucial that each configuration be associated with
-    a unique name, as we use these names to determine if we can
-    reuse a learner or not.
-    """
-    def __init__(self, name, attach, relate=None):
-        self.name = name
-        "unique name for this configuration"
+    :param name: name of the learner/decoder
+    :type name: string
 
-        self.attach = attach
-        "attachment learner"
+    :param key: unique string that distinguishes this learner/decoder
+                from others (eg. 'astar-2-best')
+    :type key: string
 
-        self.relate = relate
-        "relation learner (None if same as attach)"
-
-    @classmethod
-    def simple(cls, name):
-        """
-        Simple learner consisting of just the attachment learner
-        of the same name.
-        """
-        return cls(name, name)
-
-
-_DecoderConfig = namedtuple("_DecoderConfig", "name decoder")
-
-
-class DecoderConfig(_DecoderConfig):
-    """
-    Unique combination of decoder settings.
+    :param flags: command line flags
+    :type flags: [string]
     """
     @classmethod
     def simple(cls, name):
         """
-        Simple learner consisting of just the decoder of the same
-        name.
+        Simple variant where the key is just the name of component
+        itself
         """
-        return cls(name, name)
-# pylint: enable=pointless-string-statement, too-few-public-methods
+        return cls(name, name, [])
 
-EvaluationConfig = namedtuple("EvaluationConfig", "name learner decoder")
+
+class LearnerConfig(Team):
+    """
+    Combination of an attachment and a relation learner variant
+
+    :type attach: Variant
+    :type relate: Variant
+    """
+    def __init__(self, attach, relate):
+        """
+        generate a short unique name for this learner combo
+        """
+        super(LearnerConfig, self).__init__(attach, relate)
+        self.key = self.attach.key
+        if self.relate is not None:
+            self.key += "_" + self.relate.key
+
+
+class EvaluationConfig(namedtuple("EvaluationConfig",
+                                  "key learner decoder")):
+    """
+    Combination of learners and decoders for an attelo
+    evaluation
+
+    :type learner: LearnerConfig
+    :type decoder: Variant
+    """
+    def for_json(self, predictions):
+        """
+        (see the documentation on index files mentioned in
+        :doc:`report`)
+
+        :param predictions: relative filename for predictions
+                            that would be generated for this
+                            configuration
+        """
+        res = {}
+        res['attach-learner'] = self.learner.attach.key
+        if self.learner.relate is not None:
+            res['relate-learner'] = self.learner.relate.key
+        res['decoder'] = self.decoder.key
+        res['predictions'] = predictions
+        return res
+
+    @classmethod
+    def simple_key(cls, learner, decoder):
+        """
+        generate a short unique name for a learner/decoder combo
+        """
+        return "%s-%s" % (learner.key, decoder.key)

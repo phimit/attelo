@@ -5,9 +5,8 @@ Experiment results
 from __future__ import print_function
 from collections import namedtuple
 import csv
-import os
+import itertools
 import sys
-import cPickle
 
 from tabulate import tabulate
 
@@ -167,13 +166,13 @@ class Score(object):
 
     def table_row(self):
         "Scores as a row of floats (meant to be included in a table)"
-        row = [100 * self.precision,
-               100 * self.recall,
-               100 * self.f1]
+        row = [self.precision,
+               self.recall,
+               self.f1]
 
         if self.f1_corr:
-            row += [100 * self.recall_corr,
-                    100 * self.f1_corr]
+            row += [self.recall_corr,
+                    self.f1_corr]
 
         return row
 
@@ -330,14 +329,6 @@ class Report(object):
                                        totals, evals)
         self.params = params if params is not None else {}
 
-    def save(self, name):
-        "Dump the scores a file of the given name in some binary format"
-        dname = os.path.dirname(name)
-        if not os.path.exists(dname):
-            os.makedirs(dname)
-        with open(name, "wb") as reportfile:
-            cPickle.dump(self, reportfile)
-
     def for_json(self):
         """
         Return a JSON-serialisable dictionary representing the scores
@@ -401,9 +392,9 @@ class CombinedReport(object):
         2D tabular output
         """
         keys = sorted(self.reports.keys())
-        return tabulate([[k] + self.reports[k].table_row() for k in keys],
+        return tabulate([list(k) + self.reports[k].table_row() for k in keys],
                         headers=Report.table_header(),
-                        floatfmt=".1f")
+                        floatfmt=".3f")
 
     def for_json(self):
         """
@@ -411,3 +402,34 @@ class CombinedReport(object):
         May contain more information than the raw table
         """
         return {k: v.for_json() for k, v in self.reports.items()}
+
+
+def _mk_confusion_row(ignore, row):
+    '''
+    Given a list of numbers, replace the zeros by '.'.
+    Put angle brackets around the column we should ignore
+    '''
+    res = []
+    for i, col in enumerate(row):
+        cell = col or '.'
+        cell = '<{}>'.format(cell) if i == ignore else cell
+        res.append(cell)
+    return res
+
+
+def show_confusion_matrix(labels, matrix):
+    '''
+    Return a string representing a confusion matrix in 2D
+    '''
+    longest_label = max(labels, key=len)
+    len_longest = len(longest_label)
+    rlabels = [x.rjust(len_longest, ' ') + '-' for x in labels]
+    # pylint: disable=star-args
+    # fake vertical headers by making them rows
+    headers = [[''] + list(row)
+               for row in itertools.izip_longest(*rlabels, fillvalue='')]
+    # pylint: enable=star-args
+    body = []
+    for rnum, (label, row) in enumerate(zip(labels, matrix.tolist())):
+        body.append([label] + _mk_confusion_row(rnum, row))
+    return tabulate(headers + body)
