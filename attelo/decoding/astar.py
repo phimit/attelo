@@ -134,8 +134,10 @@ class AstarStrategy(Enum):
         * intra: intra-sentence level first 
     """
     simple = 1
-    intra = 2
-    none = 3
+    intra_heads = 2
+    intra_last = 3
+    intra_only = 4
+    intra_rfc = 5
 
     @classmethod
     def from_string(cls, string):

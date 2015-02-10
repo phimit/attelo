@@ -17,7 +17,7 @@ from numpy import inf
 # pylint: enable-no-name-in-module
 
 from .decoding import (DecodingMode, DecoderArgs, DECODERS)
-from .decoding.astar import (AstarArgs, RfcConstraint, Heuristic)
+from .decoding.astar import (AstarArgs, AstarStrategy, RfcConstraint, Heuristic)
 from .decoding.mst import (MstRootStrategy)
 from .learning import (LearnerArgs, PerceptronArgs,
                        ATTACH_LEARNERS, RELATE_LEARNERS)
@@ -45,12 +45,13 @@ DEFAULT_MST_ROOT = MstRootStrategy.fake_root
 DEFAULT_ASTAR_ARGS = AstarArgs(rfc=RfcConstraint.full,
                                heuristics=Heuristic.average,
                                beam=None,
-                               nbest=1)
+                               strategy=AstarStrategy.intra,
+                               nbest=1,)
 DEFAULT_HEURISTIC = DEFAULT_ASTAR_ARGS.heuristics
 DEFAULT_BEAMSIZE = DEFAULT_ASTAR_ARGS.beam
 DEFAULT_NBEST = DEFAULT_ASTAR_ARGS.nbest
 DEFAULT_RFC = DEFAULT_ASTAR_ARGS.rfc
-
+DEFAULT_STRATEGY = DEFAULT_ASTAR_ARGS.strategy
 #
 DEFAULT_DECODER = "local"
 DEFAULT_NIT = DEFAULT_PERCEPTRON_ARGS.iterations
@@ -88,6 +89,7 @@ def args_to_decoder(args):
     astar_args = AstarArgs(rfc=args.rfc,
                            heuristics=args.heuristics,
                            beam=args.beamsize,
+                           strategy=args.astar_strategy,
                            nbest=args.nbest)
 
     config = DecoderArgs(threshold=args.threshold,
@@ -305,6 +307,13 @@ def _add_decoder_args(psr):
                            help="with astar decoding, set a nbest oracle, "
                            "keeping n solutions "
                            "default: 1-best = simple astar")
+
+    astar_grp.add_argument("--astar-strategy", "-S",
+                           type=AstarStrategy.from_string,
+                           default=DEFAULT_STRATEGY,
+                           help="with astar decoding, what kind of decoding strategy is applied "
+                           " simple, or intra  (sentence-aware with various combinations)  "
+                           "(default: %s)" % DEFAULT_STRATEGY.name)
 
     perc_grp = psr.add_argument_group('perceptron arguments')
     perc_grp.add_argument("--non-prob-scores",
