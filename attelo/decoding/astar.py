@@ -307,10 +307,13 @@ class DiscourseState(State):
             return lambda x: x
 
     def next_states(self):
-        """must return a state and a cost
+        """ astar next state generation, assuming there is already an accessible target to attach to
+        returns a list of (state,cost)
         TODO: adapt to disc parse, according to choice made for data -> especially update to RFC
         """
         res = []
+        if self.data().tobedone()==[]:
+            return self.next_states_w_empty()
         one = self.data().tobedone()[0]
         transform = self._mk_score_transform()
         #print ">> taking care of node ", one
@@ -324,6 +327,23 @@ class DiscourseState(State):
                 score = transform(prob)
                 res.append((new, score))
         return res
+
+    def next_states_w_empty(self):
+        """astar next state generation NOT assuming there is already an accessible target to attach to
+        if not, do not add a link but init states with all possible edus as heads. cost is then 0
+         returns a list of (state,cost)
+        """
+        res = []
+        print >> sys.stderr, "=== init Astar with all edus of sentence ==== "
+        pending = self.data().tobedone()
+        for (i,one) in enumerate(pending):
+            new = DiscData(accessible=pending[:i]+pending[i+1:], tolink=[pending[i]],parent=None)
+            res.append((new,0))
+
+        return res
+
+
+
 
     def __str__(self):
         return str(self.data()) + ": " + str(self.cost())
@@ -366,85 +386,85 @@ class DiscourseState(State):
 
 #########################################
 
-class TwoStageNROData(DiscData):
-    """similar as above with different handling of inter-sentence and intra-sentence relations
+# class TwoStageNROData(DiscData):
+#     """similar as above with different handling of inter-sentence and intra-sentence relations
 
-    accessible is list of starting edus (only one for now)
-    """
+#     accessible is list of starting edus (only one for now)
+#     """
 
-    def __init__(self, parent=None, accessible=None, tolink=None):
-        super(TwoStageNROData, self).__init__(parent=parent,
-                                              accessible=accessible,
-                                              tolink=tolink)
-        self._accessible_global = accessible or []
-        self._accessible_sentence = accessible or []
-        self._intra = True
-        self._current_sentence = 1
+#     def __init__(self, parent=None, accessible=None, tolink=None):
+#         super(TwoStageNROData, self).__init__(parent=parent,
+#                                               accessible=accessible,
+#                                               tolink=tolink)
+#         self._accessible_global = accessible or []
+#         self._accessible_sentence = accessible or []
+#         self._intra = True
+#         self._current_sentence = 1
 
-    def accessible(self):
-        """
-        wip:
-        """
-        if self._intra:
-            return self._accessible_sentence
-        else:
-            return self._accessible_global
+#     def accessible(self):
+#         """
+#         wip:
+#         """
+#         if self._intra:
+#             return self._accessible_sentence
+#         else:
+#             return self._accessible_global
 
-    def update_mode(self):
-        "switch between intra/inter-sentential parsing mode"
-        self._intra = not self._intra
+#     def update_mode(self):
+#         "switch between intra/inter-sentential parsing mode"
+#         self._intra = not self._intra
 
-    def link(self, to_edu, from_edu, relation):
-        """WIP
+#     def link(self, to_edu, from_edu, relation):
+#         """WIP
 
-        """
-        index = self.accessible().index(to_edu)
-        self._link = (to_edu, from_edu, relation)
-        if self._intra: # simple RFC for now
-            self._accessible_global = self._accessible_sentence[: index + 1]
-            self._accessible_global.append(from_edu)
-        else:
-            self._accessible_sentence = self._accessible_sentence[:index + 1]
-            self._accessible_global.append(from_edu)
-
-
-
-class TwoStageNRO(DiscourseState):
-    """similar as above with different handling of inter-sentence and intra-sentence relations"""
-    def __init__(self):
-        pass
-
-    def same_sentence(self, edu1, edu2):
-        """not implemented: will always return False
-        TODO: this should go in preprocessing before launching astar
-        ?? would it be easier to have access to all edu pair features ??
-        (certainly for that one)
-        """
-        return self.shared().get("same_sentence", lambda x: False)(edu1, edu2)
-
-    def next_states(self):
-        """must return a state and a cost
-        """
-        # TODO: decode differently on intra/inter sentence
-        res = []
-        one = self.data().tobedone()[0]
-        # inter/intra
-        # if intra shared.sentence([one]) != current
-        #      current += 1 / intra = False
-        # else:
-        #      intra = True
+#         """
+#         index = self.accessible().index(to_edu)
+#         self._link = (to_edu, from_edu, relation)
+#         if self._intra: # simple RFC for now
+#             self._accessible_global = self._accessible_sentence[: index + 1]
+#             self._accessible_global.append(from_edu)
+#         else:
+#             self._accessible_sentence = self._accessible_sentence[:index + 1]
+#             self._accessible_global.append(from_edu)
 
 
-        for attachmt in self.data().accessible():
-            new = copy.deepcopy(self.data())
-            new.tobedone().pop(0)
-            relation, prob = self.proba((attachmt, one))
-            transform = self._mk_score_transform()
-            if prob is not None:
-                new.link(attachmt, one, relation)
-                new.parent = self.data()
-                res.append((new, transform(prob)))
-        return res
+
+# class TwoStageNRO(DiscourseState):
+#     """similar as above with different handling of inter-sentence and intra-sentence relations"""
+#     def __init__(self):
+#         pass
+
+#     def same_sentence(self, edu1, edu2):
+#         """not implemented: will always return False
+#         TODO: this should go in preprocessing before launching astar
+#         ?? would it be easier to have access to all edu pair features ??
+#         (certainly for that one)
+#         """
+#         return self.shared().get("same_sentence", lambda x: False)(edu1, edu2)
+
+#     def next_states(self):
+#         """must return a state and a cost
+#         """
+#         # TODO: decode differently on intra/inter sentence
+#         res = []
+#         one = self.data().tobedone()[0]
+#         # inter/intra
+#         # if intra shared.sentence([one]) != current
+#         #      current += 1 / intra = False
+#         # else:
+#         #      intra = True
+
+
+#         for attachmt in self.data().accessible():
+#             new = copy.deepcopy(self.data())
+#             new.tobedone().pop(0)
+#             relation, prob = self.proba((attachmt, one))
+#             transform = self._mk_score_transform()
+#             if prob is not None:
+#                 new.link(attachmt, one, relation)
+#                 new.parent = self.data()
+#                 res.append((new, transform(prob)))
+#         return res
 
 ###################################
 
@@ -573,12 +593,33 @@ def preprocess_heuristics(prob_distrib):
     #print(result, file= sys.stderr)
     return result
 
+_intra_strategies = frozenset((AstarStrategy.intra_heads, 
+                               AstarStrategy.intra_last,
+                               AstarStrategy.intra_only,
+                               AstarStrategy.intra_rfc
+                               ))
 
+def find_head_of_tree(edge_list):
+    """find the head of a tree given as a list of edge (only node appearing as target only)"""
+    all = dict(edge_list)
+    sources = frozenset(all.keys())
+    targets = frozenset(all.values())
+    head = sources - targets 
+    if len(head)!=1: 
+        print >> sys.sdterr, "wrong graph (not a tree) appearing in prediction"
+    else: 
+        return list(head)[0]
+    
 # TODO: order function should be a method parameter
 # - root should be specified ? or a fake root ? for now, it is the first edu
 # - should allow for (at least local) argument inversion (eg background), for more expressivity
 # - dispatch of various strategies should happen here.
-#   the original strategy should be called simpleNRO or NRO
+# - refactoring needed with all the options ... 
+# - beam search should be orthogonal to decoding strategy
+#  -?  the original strategy should be called simpleNRO or NRO
+# - check interaction between rfc in one sentence wrt free parsing order 
+
+
 class AstarDecoder(Decoder):
     """wrapper for astar decoder to be used by processing pipeline
     returns a structure, or nbest structures
@@ -602,7 +643,7 @@ class AstarDecoder(Decoder):
             astar = DiscourseBeamSearch(heuristic=self._heuristic,
                                         shared=search_shared,
                                         queue_size=self._args.beam)
-        elif self._args.strategy==AstarStrategy.intra:
+        elif self._args.strategy in _intra_strategies:
             # launch a decoder per sentence
             #   - sent parses collect separate parses
             #   - to_link will collect admissible edus for document level attachmt 
@@ -616,40 +657,41 @@ class AstarDecoder(Decoder):
             for (i,sent) in enumerate(order_by_sentence(sorted_edus)):
                 print("doing sentence %d"%(i+1), file=sys.stderr)
                 astar = DiscourseSearch(heuristic=self._heuristic,
-                                    shared=search_shared)
-                genall = astar.launch(DiscData(accessible=[sent[0]], tolink=sent[1:]),
-                                  norepeat=True, verbose=False)
+                                        shared=search_shared)
+                genall = astar.launch(DiscData(accessible=[], tolink=sent),
+                                      norepeat=True, verbose=False)
                 endstate = genall.next()
                 sol = astar.recover_solution(endstate)
                 sent_parses.extend(sol)
-                to_link.append(sent[0])
-                # TODO: check that last edu is in it ...
-                accessible.extend(endstate.data().accessible())
+                to_link.append(get_head_of_tree(sol))
+                if self._args.strategy==AstarStrategy.intra_heads:
+                    accessible.append(get_head_of_tree(sol))
+                elif self._args.strategy==AstarStrategy.intra_last:
+                     accessible.extend([get_head_of_tree(sol),sent[-1]])
+                elif self._args.strategy==AstarStrategy.intra_rfc:
+                    # TODO: check that last edu is in it ...
+                    accessible.extend(endstate.data().accessible())
         else:
             astar = DiscourseSearch(heuristic=self._heuristic,
                                     shared=search_shared)
             genall = astar.launch(DiscData(accessible=[edus[0]], tolink=edus[1:]),
                                   norepeat=True, verbose=False)
         # this should be ventilated above. here for easier testing for now
-        if self._args.strategy==AstarStrategy.intra: 
+        if self._args.strategy==AstarStrategy.intra_only:
+            return [sent_parses]
+        if self._args.strategy  in _intra_strategies: 
             # recombine sub parses:
-            print("nbest=1 (forced), intra/inter sentence model", file=sys.stderr)
-            # option (1) : do nothing, leave sentence separate
-            #all_solutions = [sent_parses]
-            # option (2) : astar parse based on sentence heads 
+            print("nbest=1 (forced), intra/inter sentence model with strategy =%s "%self._args.strategy, file=sys.stderr)
             astar = DiscourseSearch(heuristic=self._heuristic,
                                     shared=search_shared)
-            # only sentence heads are linked and accessible
             #genall = astar.launch(DiscData(accessible=[to_link[0]], tolink=to_link[1:]),
-            # sentence heads + RFC accessbile -> TODO: RFC accessible should be restrainded to inter-sentence ?
+            # sentence heads + RFC accessbile 
             genall = astar.launch(DiscData(accessible=[to_link[0]]+accessible, tolink=to_link[1:]),
                                   norepeat=True, verbose=False)
             endstate = genall.next()
             sol = astar.recover_solution(endstate)
             all_solutions = [sol+sent_parses]
-            # option (3) : add RFC nodes to accessibles
-            # TBD
-        else:# nbest solutions handling
+        else:# nbest solutions handling in simple document-level Astar 
             all_solutions = []
             print("nbest=%d" % self._args.nbest, file=sys.stderr)
             for i in range(self._args.nbest):
