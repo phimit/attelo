@@ -4,14 +4,11 @@ Managing command line arguments
 
 from __future__ import print_function
 from argparse import ArgumentTypeError
-from collections import namedtuple
 from functools import wraps
-from ConfigParser import ConfigParser
 import argparse
+import random
 import sys
 
-<<<<<<< variant A
-import Orange
 # pylint: disable=no-name-in-module
 # pylint at the time of this writing doesn't deal well with
 # packages that dynamically generate methods
@@ -19,215 +16,13 @@ import Orange
 from numpy import inf
 # pylint: enable-no-name-in-module
 
-from .decoding import DecodingMode
-from .decoding.astar import\
-    AstarArgs, RfcConstraint, Heuristic, AstarDecoder
-from .decoding.baseline import LastBaseline, LocalBaseline
-from .decoding.mst import MstDecoder
-from .decoding.greedy import LocallyGreedy
->>>>>>> variant B
-import Orange
-# pylint: disable=no-name-in-module
-# pylint at the time of this writing doesn't deal well with
-# packages that dynamically generate methods
-# https://bitbucket.org/logilab/pylint/issue/58/false-positive-no-member-on-numpy-imports
-from numpy import inf
-# pylint: enable-no-name-in-module
-
-from .decoding import DecodingMode
-from .decoding.astar import\
-    AstarArgs, RfcConstraint, Heuristic, AstarDecoder
-from .decoding.baseline import LastBaseline, LocalBaseline
-from .decoding.mst import MstDecoder, MsdagDecoder
-from .decoding.greedy import LocallyGreedy
-####### Ancestor
-from .decoding.astar import astar_decoder, h0, h_best, h_max, h_average
-from .decoding.baseline import local_baseline, last_baseline
-from .decoding.mst import mst_decoder
-from .decoding.greedy import locallyGreedy
-======= end
-from .features import Phrasebook
-from .learning.megam import MaxentLearner
-from .learning.perceptron import\
-    (PerceptronArgs, Perceptron, PassiveAggressive, StructuredPerceptron,
-     StructuredPassiveAggressive)
-
+from .decoding import (DecodingMode, DecoderArgs, DECODERS)
+from .decoding.astar import (AstarArgs, RfcConstraint, Heuristic)
+from .decoding.mst import (MstRootStrategy)
+from .learning import (LearnerArgs, PerceptronArgs,
+                       ATTACH_LEARNERS, RELATE_LEARNERS)
+from .util import Team
 # pylint: disable=too-few-public-methods
-
-
-# pylint: disable=too-many-arguments
-class DecoderArgs(namedtuple("DecoderAgs",
-                             ["threshold",
-                              "astar",
-                              "use_prob"])):
-    """
-    Parameters needed by decoder.
-
-    :param use_prob: `True` if model scores are probabilities in [0,1]
-                     (to be mapped to -log), `False` if arbitrary scores
-                     (to be untouched)
-    :type use_prob: bool
-
-    :param threshold: For some decoders, a probability floor that helps
-                      the decoder decide whether or not to attach something
-    :type threshold: float or None
-
-    :param astar: Config options specific to the A* decoder
-    :type astar: AstarArgs
-    """
-    def __new__(cls,
-                threshold=None,
-                astar=None,
-                use_prob=True):
-        sup = super(DecoderArgs, cls)
-        return sup.__new__(cls,
-                           threshold=threshold,
-                           astar=astar,
-                           use_prob=use_prob)
-# pylint: enable=too-many-arguments
-
-
-def args_to_phrasebook(args):
-    """
-    Given the (parsed) command line arguments, return the set of
-    core feature labels for our incoming dataset.
-
-    If no configuration file is provided, we default to the
-    Annodis experiment settings
-    """
-    config = ConfigParser()
-    # cancels case-insensitive reading of variables.
-    config.optionxform = lambda option: option
-    with open(args.config) as config_file:
-        config.readfp(config_file)
-        metacfg = dict(config.items("Meta features"))
-        return Phrasebook(source=metacfg["FirstNode"],
-                          target=metacfg["SecondNode"],
-                          source_span_start=metacfg["SourceSpanStart"],
-                          source_span_end=metacfg["SourceSpanEnd"],
-                          target_span_start=metacfg["TargetSpanStart"],
-                          target_span_end=metacfg["TargetSpanEnd"],
-                          grouping=metacfg["Grouping"],
-                          label=metacfg["Label"])
-
-
-def _mk_local_decoder(config, default=0.5):
-    """
-    Instantiate the local decoder
-    """
-<<<<<<< variant A
-    if config.threshold is None:
-        threshold = default
-        print("using default threshold of {}".format(threshold),
-              file=sys.stderr)
-    else:
-        threshold = config.threshold
-        print("using requested threshold of {}".format(threshold),
-              file=sys.stderr)
-    return LocalBaseline(threshold, config.use_prob)
->>>>>>> variant B
-    if config.threshold is None:
-        threshold = default
-        print("using default threshold of {}".format(threshold),
-              file=sys.stderr)
-    else:
-        threshold = config.threshold
-        print("using requested threshold of {}".format(threshold),
-              file=sys.stderr)
-    return LocalBaseline(threshold, config.use_prob)
-
-####### Ancestor
-    def factory(arg, **kwargs):
-        "actually build decoder"
-        return astar_decoder(arg, heuristics=heuristics, beam=beamsize, RFC=rfc,nbest=nbest,**kwargs)
-    return factory
-
-======= end
-
-<<<<<<< variant A
-
-def _known_decoders():
->>>>>>> variant B
-def _known_decoders():
-####### Ancestor
-def _known_heuristics():
-    """
-    Return a dictionary of possible A* heuristics.
-    This lets us grab at the names of known heuristics
-    for command line restruction
-    """
-    return {"average": h_average,
-            "best": h_best,
-            "max": h_max,
-            "zero": h0}
-
-
-def _known_decoders(heuristics, rfc,beamsize,nbest=1):
-======= end
-    """
-    Return a dictionary of possible decoders.
-    This lets us grab at the names of known decoders
-    """
-<<<<<<< variant A
-    return {"last": lambda _: LastBaseline(),
-            "local": _mk_local_decoder,
-            "locallyGreedy": lambda _: LocallyGreedy(),
-            "mst": lambda c: MstDecoder(c.use_prob),
-            "astar": lambda c: AstarDecoder(c.astar)}
-
->>>>>>> variant B
-    return {"last": lambda _: LastBaseline(),
-            "local": _mk_local_decoder,
-            "locallyGreedy": lambda _: LocallyGreedy(),
-            "mst": lambda c: MstDecoder(c.use_prob),
-            "msdag": lambda c: MsdagDecoder(c.use_prob),
-            "astar": lambda c: AstarDecoder(c.astar)}
-####### Ancestor
-    return {"last": last_baseline,
-            "local": local_baseline,
-            "locallyGreedy": locallyGreedy,
-            "mst": mst_decoder,
-            "astar": _mk_astar_decoder(heuristics, rfc,beamsize,nbest=nbest)}
-
-======= end
-
-def _known_learners(decoder, phrasebook, perc_args=None):
-    """
-    Given the (parsed) command line arguments, return a sequence of
-    learners in the order they were requested on the command line
-    """
-
-    # orange classifiers
-    bayes = Orange.classification.bayes.NaiveLearner(adjust_threshold=True)
-    bayes.name = "naive bayes"
-    # svm = Orange.classification.svm.SVMLearnerEasy(probability = True)
-    svm = Orange.classification.svm.SVMLearner(probability=True)
-    svm.name = "svm"
-    maxent = MaxentLearner()  # Orange.classification.logreg.LogRegLearner()
-    maxent.name = "maxent"
-    majority = Orange.classification.majority.MajorityLearner()
-    majority.name = "majority"
-
-    learners = {"bayes": bayes,
-                "svm": svm,
-                "maxent": maxent,
-                "majority": majority}
-
-    if perc_args is not None:
-        # home made perceptron
-        learners["perc"] = Perceptron(phrasebook, perc_args)
-        # home made PA (PA-II in fact)
-        # TODO: expose C parameter
-        learners["pa"] = PassiveAggressive(phrasebook, perc_args)
-        # home made structured perceptron
-        learners["struc_perc"] = StructuredPerceptron(phrasebook,
-                                                      decoder,
-                                                      perc_args)
-        # home made structured PA
-        learners["struc_pa"] = StructuredPassiveAggressive(phrasebook,
-                                                           decoder,
-                                                           perc_args)
-    return learners
 
 
 def _is_perceptron_learner_name(learner_name):
@@ -242,6 +37,8 @@ DEFAULT_PERCEPTRON_ARGS = PerceptronArgs(iterations=20,
                                          averaging=True,
                                          use_prob=True,
                                          aggressiveness=inf)
+
+DEFAULT_MST_ROOT = MstRootStrategy.fake_root
 
 # default values for A* decoder
 # (NB: not the same as in the default initialiser)
@@ -260,10 +57,25 @@ DEFAULT_NIT = DEFAULT_PERCEPTRON_ARGS.iterations
 DEFAULT_NFOLD = 10
 
 # these are just dummy values (we just want the keys here)
-KNOWN_DECODERS = _known_decoders().keys()
-KNOWN_ATTACH_LEARNERS = _known_learners(LastBaseline, {},
-                                        DEFAULT_PERCEPTRON_ARGS).keys()
-KNOWN_RELATION_LEARNERS = _known_learners(LastBaseline, {}, None)
+KNOWN_DECODERS = DECODERS.keys()
+
+RNG_SEED = "just an illusion"
+
+
+def args_to_rng(args):
+    """
+    Return a random number generator instance, hard-seeded
+    unless we ask for shuffling to be enabled
+
+    (note: if shuffle mode is enable, the rng in question
+    will just be the system generator)
+    """
+    if args.shuffle:
+        return random
+    else:
+        rng = random.Random()
+        rng.seed(RNG_SEED)
+        return rng
 
 
 def args_to_decoder(args):
@@ -271,8 +83,7 @@ def args_to_decoder(args):
     Given the parsed command line arguments, and an attachment model, return
     the decoder that was requested from the command line
     """
-    if args.data_relations is None:
-        args.rfc = RfcConstraint.simple
+    args.rfc = RfcConstraint.simple
 
     astar_args = AstarArgs(rfc=args.rfc,
                            heuristics=args.heuristics,
@@ -280,13 +91,12 @@ def args_to_decoder(args):
                            nbest=args.nbest)
 
     config = DecoderArgs(threshold=args.threshold,
+                         mst_root_strategy=args.mst_root_strategy,
                          astar=astar_args,
                          use_prob=not args.non_prob_scores)
 
-    _decoders = _known_decoders()
-
-    if args.decoder in _decoders:
-        factory = _decoders[args.decoder]
+    if args.decoder in DECODERS:
+        factory = DECODERS[args.decoder]
         return factory(config)
     else:
         raise ArgumentTypeError("Unknown decoder: " + args.decoder)
@@ -302,7 +112,54 @@ def args_to_decoding_mode(args):
         return DecodingMode.joint
 
 
-def args_to_learners(decoder, phrasebook, args):
+def _get_learner(name, is_for_attach=True):
+    '''
+    Return learner constructor that goes with the given
+    name or raise an ArgumentTypeError
+    '''
+
+    if is_for_attach:
+        ldict = ATTACH_LEARNERS
+        desc = 'attachment'
+    else:
+        ldict = RELATE_LEARNERS
+        desc = 'relation labelling'
+
+    if not (name in ATTACH_LEARNERS or name in RELATE_LEARNERS):
+        # completely unknown
+        raise ArgumentTypeError("Unknown learner: " + name)
+    elif name not in ldict:
+        raise ArgumentTypeError(('The learner "{}" cannot be used for the '
+                                 '{} task').format(name, desc))
+    else:
+        return ldict[name]
+
+
+def _get_learner_set(args):
+    '''
+    Return a pair of learner wrappers (not the actual
+    learners, which we would need the other args for)
+
+    :rtype Team(learner wrapper)
+    '''
+    aname = args.learner
+    rname = args.learner if args.relation_learner is None\
+        else args.relation_learner
+
+    has_perc = _is_perceptron_learner_name(aname)
+    if has_perc and not args.relation_learner:
+        msg = "The learner '" + args.learner + "' needs a" +\
+            "a non-perceptron relation learner to go with it"
+        raise ArgumentTypeError(msg)
+
+    attach_learner = _get_learner(aname, is_for_attach=True)
+    relate_learner = _get_learner(rname, is_for_attach=False)
+
+    return Team(attach=attach_learner,
+                relate=relate_learner)
+
+
+def args_to_learners(decoder, args):
     """
     Given the (parsed) command line arguments, return a
     learner to use for attachment, and one to use for
@@ -311,34 +168,20 @@ def args_to_learners(decoder, phrasebook, args):
     By default the relations learner is just the attachment
     learner, but the user can make a point of specifying a
     different one
+
+    :rtype Team(learner)
     """
 
     perc_args = PerceptronArgs(iterations=args.nit,
                                averaging=args.averaging,
                                use_prob=not args.non_prob_scores,
                                aggressiveness=args.aggressiveness)
-    _learners = _known_learners(decoder, phrasebook, perc_args)
+    learner_args = LearnerArgs(decoder=decoder,
+                               perc_args=perc_args)
 
-    if args.learner in _learners:
-        attach_learner = _learners[args.learner]
-    else:
-        raise ArgumentTypeError("Unknown learner: " + args.learner)
-
-    has_perc = _is_perceptron_learner_name(args.learner)
-    if has_perc and not args.relation_learner:
-        msg = "The learner '" + args.learner + "' needs a" +\
-            "a non-perceptron relation learner to go with it"
-        raise ArgumentTypeError(msg)
-    if args.relation_learner is None:
-        relation_learner = attach_learner
-    elif args.relation_learner in _learners:
-        relation_learner = _learners[args.relation_learner]
-    else:
-        raise ArgumentTypeError("Unknown relation learner: "
-                                + args.relation_learner)
-
-    return attach_learner, relation_learner
-
+    wrappers = _get_learner_set(args)
+    return Team(attach=wrappers.attach(learner_args),
+                relate=wrappers.relate(learner_args))
 
 # ---------------------------------------------------------------------
 # argparse
@@ -348,10 +191,12 @@ def args_to_learners(decoder, phrasebook, args):
 def add_common_args(psr):
     "add usual attelo args to subcommand parser"
 
-    psr.add_argument("data_attach", metavar="FILE",
-                     help="attachment data")
-    psr.add_argument("data_relations", metavar="FILE", nargs="?",
-                     help="relations data")  # optional
+    psr.add_argument("edus", metavar="FILE",
+                     help="EDU input file (tab separated)")
+    psr.add_argument("pairings", metavar="FILE",
+                     help="EDU pairings file (tab separated)")
+    psr.add_argument("features", metavar="FILE",
+                     help="EDU pair features (libsvm)")
     psr.add_argument("--config", "-C", metavar="FILE",
                      required=True,
                      default=None,
@@ -359,18 +204,6 @@ def add_common_args(psr):
                      "absent, defaults to hard-wired annodis config")
     psr.add_argument("--quiet", action="store_true",
                      help="Supress all feedback")
-
-
-def add_common_args_lite(psr):
-    "variant of add_common_args without relations table"
-
-    psr.add_argument("data_attach", metavar="FILE",
-                     help="attachment data")
-    psr.add_argument("--config", "-C", metavar="FILE",
-                     required=True,
-                     default=None,
-                     help="corpus specificities config file; if "
-                     "absent, defaults to hard-wired annodis config")
 
 
 def add_fold_choice_args(psr):
@@ -441,6 +274,13 @@ def _add_decoder_args(psr):
                              "default: %s " % DEFAULT_DECODER +
                              "(cf also heuristics for astar)")
 
+    mst_grp = psr.add_argument_group("MST/MSDAG decoder arguments")
+    mst_grp.add_argument("--mst-root-strategy",
+                         default=DEFAULT_MST_ROOT,
+                         type=MstRootStrategy.from_string,
+                         help="how the MST decoder should select its root "
+                         + MstRootStrategy.help_suffix(DEFAULT_MST_ROOT))
+
     astar_grp = psr.add_argument_group("A* decoder arguments")
     astar_grp.add_argument("--heuristics", "-e",
                            default=DEFAULT_HEURISTIC,
@@ -494,10 +334,10 @@ def add_learner_args(psr):
 
     psr.add_argument("--learner", "-l",
                      default="bayes",
-                     choices=KNOWN_ATTACH_LEARNERS,
+                     choices=ATTACH_LEARNERS.keys(),
                      help="learner for attachment [and relations]")
     psr.add_argument("--relation-learner",
-                     choices=KNOWN_RELATION_LEARNERS,
+                     choices=RELATE_LEARNERS.keys(),
                      help="learners for relation labeling "
                      "[default same as attachment]")
 
@@ -520,6 +360,28 @@ def add_learner_args(psr):
                           help="aggressivness (passive-aggressive perceptrons "
                           "only); (default: %f)" %
                           DEFAULT_PERCEPTRON_ARGS.aggressiveness)
+
+
+def validate_learner_args(wrapped):
+    """
+    Given a function that accepts an argparsed object, check
+    the learner arguments before carrying on.
+
+    This is meant to be used as a decorator, eg.::
+
+        @validate_learner_args
+        def main(args):
+            blah
+    """
+    @wraps(wrapped)
+    def inner(args):
+        "die if learner are invalid"
+        try:
+            _get_learner_set(args)
+        except ArgumentTypeError as err:
+            sys.exit('arg error: ' + str(err))
+        wrapped(args)
+    return inner
 
 
 def add_report_args(psr):
