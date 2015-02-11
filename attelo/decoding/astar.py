@@ -312,7 +312,7 @@ class DiscourseState(State):
         TODO: adapt to disc parse, according to choice made for data -> especially update to RFC
         """
         res = []
-        if self.data().tobedone()==[]:
+        if self.data().accessible()==[]:
             return self.next_states_w_empty()
         one = self.data().tobedone()[0]
         transform = self._mk_score_transform()
@@ -334,12 +334,11 @@ class DiscourseState(State):
          returns a list of (state,cost)
         """
         res = []
-        print >> sys.stderr, "=== init Astar with all edus of sentence ==== "
+        #print("=== init Astar with all edus of sentence ==== ", file=sys.stderr)
         pending = self.data().tobedone()
         for (i,one) in enumerate(pending):
             new = DiscData(accessible=pending[:i]+pending[i+1:], tolink=[pending[i]],parent=None)
-            res.append((new,0))
-
+            res.append((new,0.))
         return res
 
 
@@ -365,6 +364,7 @@ class DiscourseState(State):
         assuming the best overall prob in the distrib"""
         missing_links = self.data().tobedone()
         transform = self._mk_score_transform()
+        #print("wtf ?", missing_links, file=sys.stderr)
         return sum(transform(self.shared()["heuristics"]["average"][x])
                    for x in missing_links)
 
@@ -563,7 +563,7 @@ class AstarArgs(namedtuple('AstarArgs',
                 beam=None,
                 rfc=RfcConstraint.simple,
                 use_prob=True,
-                strategy=AstarStrategy.intra,
+                strategy=AstarStrategy.intra_only,
                 nbest=1):
         return super(AstarArgs, cls).__new__(cls,
                                              heuristics, rfc,
@@ -601,22 +601,31 @@ _intra_strategies = frozenset((AstarStrategy.intra_heads,
 
 def find_head_of_tree(edge_list):
     """find the head of a tree given as a list of edge (only node appearing as target only)"""
-    all = dict(edge_list)
+    #print(edge_list, file=sys.stderr)
+    all = dict(((e1,e2) for (e1,e2,r) in edge_list))
     sources = frozenset(all.keys())
     targets = frozenset(all.values())
     head = sources - targets 
     if len(head)!=1: 
-        print >> sys.sdterr, "wrong graph (not a tree) appearing in prediction"
+        print("wrong graph (not a tree) appearing in prediction", file = sys.stderr)
+        print( edge_list, file = sys.stderr)
+        print( head, file = sys.stderr)
     else: 
-        return list(head)[0]
+        head = list(head)[0]
+        print("head = %s"%head,file=sys.stderr)
+        return head
     
-# TODO: order function should be a method parameter
-# - root should be specified ? or a fake root ? for now, it is the first edu
-# - should allow for (at least local) argument inversion (eg background), for more expressivity
-# - dispatch of various strategies should happen here.
+# TODO (urgent) 
+#  - accessible must have an option where it cannot be accessed if still same sentence in tolink (intra-sentence case)
+# x- root should be specified (the fake root, at the doc level)
+# - should try without ordering 
+# x- dispatch of various strategies should happen here.
+#
+# TODO not urgent: 
+# x- beam search should be orthogonal to decoding strategy
 # - refactoring needed with all the options ... 
-# - beam search should be orthogonal to decoding strategy
-#  -?  the original strategy should be called simpleNRO or NRO
+# - order function should be a method parameter
+# -?  the original strategy should be called simpleNRO or NRO
 # - check interaction between rfc in one sentence wrt free parsing order 
 
 
@@ -633,17 +642,19 @@ class AstarDecoder(Decoder):
     def decode(self, prob_distrib):
         probs = get_prob_map(prob_distrib)
         sorted_edus = get_sorted_edus(prob_distrib)
+        # we dont want the root at the sentence level. will be reintroduced at the doc level (maybe)
+        if sorted_edus[0].id=="ROOT": 
+            fake_root = sorted_edus[0]
+            sorted_edus = sorted_edus[1:]
+
         edus = [x.id for x in sorted_edus]
         print("\t %s nodes to attach"%(len(edus)-1), file=sys.stderr)
         search_shared = {"probs": probs,
                          "use_prob": self._args.use_prob,
                          "heuristics": preprocess_heuristics(prob_distrib),
                          "RFC": self._args.rfc}
-        if self._args.beam:
-            astar = DiscourseBeamSearch(heuristic=self._heuristic,
-                                        shared=search_shared,
-                                        queue_size=self._args.beam)
-        elif self._args.strategy in _intra_strategies:
+
+        if self._args.strategy in _intra_strategies:
             # launch a decoder per sentence
             #   - sent parses collect separate parses
             #   - to_link will collect admissible edus for document level attachmt 
@@ -655,25 +666,37 @@ class AstarDecoder(Decoder):
             to_link = []
             accessible = []
             for (i,sent) in enumerate(order_by_sentence(sorted_edus)):
-                print("doing sentence %d"%(i+1), file=sys.stderr)
-                astar = DiscourseSearch(heuristic=self._heuristic,
-                                        shared=search_shared)
-                genall = astar.launch(DiscData(accessible=[], tolink=sent),
-                                      norepeat=True, verbose=False)
-                endstate = genall.next()
-                sol = astar.recover_solution(endstate)
-                sent_parses.extend(sol)
-                to_link.append(get_head_of_tree(sol))
+                print("doing sentence %d, with %d nodes"%(i+1,len(sent)),file=sys.stderr)
+                if len(sent)==1:
+                    head = sent[0]
+                else:
+                    if (self._args.beam):
+                        astar = DiscourseBeamSearch(heuristic=self._heuristic,shared=search_shared,queue_size=self._args.beam)
+                    else:
+                        astar = DiscourseSearch(heuristic=self._heuristic,shared=search_shared)
+                    genall = astar.launch(DiscData(accessible=[], tolink=sent),norepeat=True, verbose=False)
+                    endstate = genall.next()
+                    sol = astar.recover_solution(endstate)
+                    sent_parses.extend(sol)
+                    head = find_head_of_tree(sol)
+                ##########
+
+                to_link.append(head)
+
                 if self._args.strategy==AstarStrategy.intra_heads:
-                    accessible.append(get_head_of_tree(sol))
+                    pass
+                    #accessible.append(find_head_of_tree(sol))
                 elif self._args.strategy==AstarStrategy.intra_last:
-                     accessible.extend([get_head_of_tree(sol),sent[-1]])
+                     accessible.extend(list(set([head,sent[-1]])))
                 elif self._args.strategy==AstarStrategy.intra_rfc:
                     # TODO: check that last edu is in it ...
                     accessible.extend(endstate.data().accessible())
         else:
-            astar = DiscourseSearch(heuristic=self._heuristic,
-                                    shared=search_shared)
+            if (self._args.beam):
+                astar = DiscourseBeamSearch(heuristic=self._heuristic, shared=search_shared, queue_size=self._args.beam)
+            else:
+                astar = DiscourseSearch(heuristic=self._heuristic, shared=search_shared)
+        
             genall = astar.launch(DiscData(accessible=[edus[0]], tolink=edus[1:]),
                                   norepeat=True, verbose=False)
         # this should be ventilated above. here for easier testing for now
@@ -682,12 +705,19 @@ class AstarDecoder(Decoder):
         if self._args.strategy  in _intra_strategies: 
             # recombine sub parses:
             print("nbest=1 (forced), intra/inter sentence model with strategy =%s "%self._args.strategy, file=sys.stderr)
-            astar = DiscourseSearch(heuristic=self._heuristic,
-                                    shared=search_shared)
+            if (self._args.beam):
+                astar = DiscourseBeamSearch(heuristic=self._heuristic, shared=search_shared, queue_size=self._args.beam)
+            else:
+                astar = DiscourseSearch(heuristic=self._heuristic,shared=search_shared) 
             #genall = astar.launch(DiscData(accessible=[to_link[0]], tolink=to_link[1:]),
             # sentence heads + RFC accessbile 
-            genall = astar.launch(DiscData(accessible=[to_link[0]]+accessible, tolink=to_link[1:]),
-                                  norepeat=True, verbose=False)
+            # FIXME: this is wrong for everything but intra_heads where accessible should be empty
+            # 
+            #print("tolink",to_link,file=sys.stderr)
+            #print("access",[fake_root]+accessible,file=sys.stderr)
+            genall = astar.launch(DiscData(accessible=["ROOT"]+accessible, tolink=to_link), norepeat=True, verbose=False)
+           
+            
             endstate = genall.next()
             sol = astar.recover_solution(endstate)
             all_solutions = [sol+sent_parses]

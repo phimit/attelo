@@ -45,7 +45,7 @@ DEFAULT_MST_ROOT = MstRootStrategy.fake_root
 DEFAULT_ASTAR_ARGS = AstarArgs(rfc=RfcConstraint.full,
                                heuristics=Heuristic.average,
                                beam=None,
-                               strategy=AstarStrategy.intra,
+                               strategy=AstarStrategy.intra_heads,
                                nbest=1,)
 DEFAULT_HEURISTIC = DEFAULT_ASTAR_ARGS.heuristics
 DEFAULT_BEAMSIZE = DEFAULT_ASTAR_ARGS.beam
