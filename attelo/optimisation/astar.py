@@ -81,7 +81,7 @@ class State(with_metaclass(ABCMeta, object)):
         raise NotImplementedError
 
     @abstractmethod
-    def next_states(self):
+    def next_states(self,filter_states=lambda x,y: True):
         "return the successor states and their costs"
         raise NotImplementedError
 
@@ -175,11 +175,13 @@ class Search(with_metaclass(ABCMeta, object)):
 
     def launch(self, init_state,
                verbose=False,
-               norepeat=False):
+               filter_states=lambda x,y: True,
+               norepeat=False,):
         """launch search from initital state value
 
         :param: norepeat: there's no need for an "already seen states"
                           datastructure
+        :param: filter_states: a function to filter states added to the queue, based on specific data property (passed along to self.next_states()) 
         """
         # TODO: should be able to change the queue_size here
         self.reset_queue()
@@ -210,7 +212,7 @@ class Search(with_metaclass(ABCMeta, object)):
                 else:
                     if not norepeat:
                         self.add_seen(state)
-                    nxt = state.next_states()
+                    nxt = state.next_states(filter_states=filter_states)
                     # print(next)
                     self.add_queue(nxt, state.cost())
             if verbose:

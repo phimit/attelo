@@ -306,7 +306,7 @@ class DiscourseState(State):
         else:
             return lambda x: x
 
-    def next_states(self):
+    def next_states(self,filter_states=lambda x,y: True):
         """ astar next state generation, assuming there is already an accessible target to attach to
         returns a list of (state,cost)
         TODO: adapt to disc parse, according to choice made for data -> especially update to RFC
@@ -320,12 +320,13 @@ class DiscourseState(State):
         for attachmt in self.data().accessible():
             new = copy.deepcopy(self.data())
             new.tobedone().pop(0)
-            relation, prob = self.proba((attachmt, one))
-            if prob is not None:
-                new.link(attachmt, one, relation, rfc=self.strategy())
-                new.parent = self.data()
-                score = transform(prob)
-                res.append((new, score))
+            if filter_states(self.data,(attachmt,one)):
+                relation, prob = self.proba((attachmt, one))
+                if prob is not None:
+                    new.link(attachmt, one, relation, rfc=self.strategy())
+                    new.parent = self.data()
+                    score = transform(prob)
+                    res.append((new, score))
         return res
 
     def next_states_w_empty(self):
@@ -337,7 +338,7 @@ class DiscourseState(State):
         #print("=== init Astar with all edus of sentence ==== ", file=sys.stderr)
         pending = self.data().tobedone()
         for (i,one) in enumerate(pending):
-            new = DiscData(accessible=pending[:i]+pending[i+1:], tolink=[pending[i]],parent=None)
+            new = DiscData(accessible=[pending[i]], tolink=pending[:i]+pending[i+1:],parent=None)
             res.append((new,0.))
         return res
 
@@ -602,9 +603,9 @@ _intra_strategies = frozenset((AstarStrategy.intra_heads,
 def find_head_of_tree(edge_list):
     """find the head of a tree given as a list of edge (only node appearing as target only)"""
     #print(edge_list, file=sys.stderr)
-    all = dict(((e1,e2) for (e1,e2,r) in edge_list))
-    sources = frozenset(all.keys())
-    targets = frozenset(all.values())
+    all = dict(((e2,e1) for (e1,e2,r) in edge_list))
+    sources = frozenset(all.values())
+    targets = frozenset(all.keys())
     head = sources - targets 
     if len(head)!=1: 
         print("wrong graph (not a tree) appearing in prediction", file = sys.stderr)
@@ -615,12 +616,20 @@ def find_head_of_tree(edge_list):
         print("head = %s"%head,file=sys.stderr)
         return head
     
+
+def same_sentence(e1id,e2id,edus):
+    return edus[e1id].subgrouping == edus[e2id].subgrouping
+
 # TODO (urgent) 
 #  - accessible must have an option where it cannot be accessed if still same sentence in tolink (intra-sentence case)
 # x- root should be specified (the fake root, at the doc level)
 # - should try without ordering 
 # x- dispatch of various strategies should happen here.
 #
+#   recombining strategies should be higher up the food chain: can be applied to any decoder
+#            - to link + accessibles gives a subset of edges from which to select for eg MST
+#
+
 # TODO not urgent: 
 # x- beam search should be orthogonal to decoding strategy
 # - refactoring needed with all the options ... 
@@ -652,7 +661,8 @@ class AstarDecoder(Decoder):
         search_shared = {"probs": probs,
                          "use_prob": self._args.use_prob,
                          "heuristics": preprocess_heuristics(prob_distrib),
-                         "RFC": self._args.rfc}
+                         "RFC": self._args.rfc,
+                         "edus":  dict([(x.id,x) for x in sorted_edus]) }
 
         if self._args.strategy in _intra_strategies:
             # launch a decoder per sentence
@@ -690,7 +700,8 @@ class AstarDecoder(Decoder):
                      accessible.extend(list(set([head,sent[-1]])))
                 elif self._args.strategy==AstarStrategy.intra_rfc:
                     # TODO: check that last edu is in it ...
-                    accessible.extend(endstate.data().accessible())
+                    if len(sent)>1:
+                        accessible.extend(endstate.data().accessible())
         else:
             if (self._args.beam):
                 astar = DiscourseBeamSearch(heuristic=self._heuristic, shared=search_shared, queue_size=self._args.beam)
@@ -704,7 +715,7 @@ class AstarDecoder(Decoder):
             return [sent_parses]
         if self._args.strategy  in _intra_strategies: 
             # recombine sub parses:
-            print("nbest=1 (forced), intra/inter sentence model with strategy =%s "%self._args.strategy, file=sys.stderr)
+            print("start document decoding with intra/inter sentence model with strategy =%s "%self._args.strategy, file=sys.stderr)
             if (self._args.beam):
                 astar = DiscourseBeamSearch(heuristic=self._heuristic, shared=search_shared, queue_size=self._args.beam)
             else:
@@ -715,12 +726,15 @@ class AstarDecoder(Decoder):
             # 
             #print("tolink",to_link,file=sys.stderr)
             #print("access",[fake_root]+accessible,file=sys.stderr)
-            genall = astar.launch(DiscData(accessible=["ROOT"]+accessible, tolink=to_link), norepeat=True, verbose=False)
-           
-            
-            endstate = genall.next()
-            sol = astar.recover_solution(endstate)
-            all_solutions = [sol+sent_parses]
+            #genall = astar.launch(DiscData(accessible=["ROOT"]+accessible, tolink=to_link), norepeat=True, verbose=False)
+            if len(to_link)<2: 
+                print("error document has too few edus ??", to_link, file=sys.stderr)
+                all_solutions = [sent_parses]
+            else:
+                genall = astar.launch(DiscData(accessible=[to_link[0]], tolink=to_link[1:]), norepeat=True, verbose=False, filter_states = lambda x, (y,z): not(same_sentence(y,z,x.shared["edus"])))
+                endstate = genall.next()
+                sol = astar.recover_solution(endstate)
+                all_solutions = [sol+sent_parses]
         else:# nbest solutions handling in simple document-level Astar 
             all_solutions = []
             print("nbest=%d" % self._args.nbest, file=sys.stderr)
