@@ -74,10 +74,7 @@ def _combine_probs(dpack, models, debug=False):
     attach_probs = models.attach.predict_proba(attach_pack.data)
     relate_probs = models.relate.predict_proba(relate_pack.data)
     relate_idxes = models.relate.predict(relate_pack.data)
-    if relate_pack.labels is None:
-        relate_labels = relate_idxes
-    else:
-        relate_labels = [relate_pack.get_label(i) for i in relate_idxes]
+    relate_labels = [relate_pack.get_label(i) for i in relate_idxes]
 
     # pylint: disable=star-args
     return [link(*x) for x in
@@ -85,7 +82,7 @@ def _combine_probs(dpack, models, debug=False):
     # pylint: disable=star-args
 
 
-def _add_labels(models, predictions, dpack):
+def _add_labels(dpack, models, predictions):
     """given a list of predictions, predict labels for a given set of edges
     (=post-labelling an unlabelled decoding)
 
@@ -150,7 +147,7 @@ def decode(mode, decoder, dpack, models):
     predictions = decoder.decode(prob_distrib)
 
     if mode == DecodingMode.post_label:
-        return _add_labels(models, dpack, predictions)
+        return _add_labels(dpack, models, predictions)
     else:
         return predictions
 
