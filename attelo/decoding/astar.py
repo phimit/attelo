@@ -320,7 +320,7 @@ class DiscourseState(State):
         for attachmt in self.data().accessible():
             new = copy.deepcopy(self.data())
             new.tobedone().pop(0)
-            if filter_states(self.data,(attachmt,one)):
+            if filter_states(self.shared(),(attachmt,one)):
                 relation, prob = self.proba((attachmt, one))
                 if prob is not None:
                     new.link(attachmt, one, relation, rfc=self.strategy())
@@ -602,6 +602,7 @@ def find_head_of_tree(edge_list):
         print("wrong graph (not a tree) appearing in prediction", file = sys.stderr)
         print( edge_list, file = sys.stderr)
         print( head, file = sys.stderr)
+        sys.exit(0)
     else: 
         head = list(head)[0]
         print("head = %s"%head,file=sys.stderr)
@@ -722,7 +723,7 @@ class AstarDecoder(Decoder):
                 print("error document has too few edus ??", to_link, file=sys.stderr)
                 all_solutions = [sent_parses]
             else:
-                genall = astar.launch(DiscData(accessible=[to_link[0]], tolink=to_link[1:]), norepeat=True, verbose=False, filter_states = lambda x, (y,z): not(same_sentence(y,z,x.shared["edus"])))
+                genall = astar.launch(DiscData(accessible=[to_link[0]], tolink=to_link[1:]), norepeat=True, verbose=False, filter_states = lambda x, (y,z): not(same_sentence(y,z,x["edus"])))
                 endstate = genall.next()
                 sol = astar.recover_solution(endstate)
                 all_solutions = [sol+sent_parses]
