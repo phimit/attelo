@@ -559,16 +559,7 @@ class AstarArgs(namedtuple('AstarArgs',
     :param strategy: what sort of decoding strategy is applied: simple, intra-sentence first
     :type strategy
     """
-    def __new__(cls,
-                heuristics=Heuristic.zero,
-                beam=None,
-                rfc=RfcConstraint.simple,
-                use_prob=True,
-                strategy=AstarStrategy.intra_only,
-                nbest=1):
-        return super(AstarArgs, cls).__new__(cls,
-                                             heuristics, rfc,
-                                             beam, nbest, strategy, use_prob)
+    pass
 # pylint: enable=too-many-arguments
 
 
@@ -643,7 +634,7 @@ class AstarDecoder(Decoder):
     returns a structure, or nbest structures
     """
     def __init__(self, astar_args):
-        self._heuristic = HEURISTICS[astar_args.heuristics]
+        self._heuristic = astar_args.heuristics
         self._args = astar_args
         # apply intra/inter sentence model is in args.strategy
         
@@ -656,6 +647,7 @@ class AstarDecoder(Decoder):
             fake_root = sorted_edus[0]
             sorted_edus = sorted_edus[1:]
 
+        heuristic = HEURISTICS[self._heuristic]
         edus = [x.id for x in sorted_edus]
         print("\t %s nodes to attach"%(len(edus)-1), file=sys.stderr)
         search_shared = {"probs": probs,
@@ -681,9 +673,9 @@ class AstarDecoder(Decoder):
                     head = sent[0]
                 else:
                     if (self._args.beam):
-                        astar = DiscourseBeamSearch(heuristic=self._heuristic,shared=search_shared,queue_size=self._args.beam)
+                        astar = DiscourseBeamSearch(heuristic=heuristic,shared=search_shared,queue_size=self._args.beam)
                     else:
-                        astar = DiscourseSearch(heuristic=self._heuristic,shared=search_shared)
+                        astar = DiscourseSearch(heuristic=heuristic,shared=search_shared)
                     genall = astar.launch(DiscData(accessible=[], tolink=sent),norepeat=True, verbose=False)
                     endstate = genall.next()
                     sol = astar.recover_solution(endstate)
@@ -704,10 +696,9 @@ class AstarDecoder(Decoder):
                         accessible.extend(endstate.data().accessible())
         else:
             if (self._args.beam):
-                astar = DiscourseBeamSearch(heuristic=self._heuristic, shared=search_shared, queue_size=self._args.beam)
+                astar = DiscourseBeamSearch(heuristic=heuristic, shared=search_shared, queue_size=self._args.beam)
             else:
-                astar = DiscourseSearch(heuristic=self._heuristic, shared=search_shared)
-        
+                astar = DiscourseSearch(heuristic=heuristic, shared=search_shared)
             genall = astar.launch(DiscData(accessible=[edus[0]], tolink=edus[1:]),
                                   norepeat=True, verbose=False)
         # this should be ventilated above. here for easier testing for now
@@ -717,9 +708,9 @@ class AstarDecoder(Decoder):
             # recombine sub parses:
             print("start document decoding with intra/inter sentence model with strategy =%s "%self._args.strategy, file=sys.stderr)
             if (self._args.beam):
-                astar = DiscourseBeamSearch(heuristic=self._heuristic, shared=search_shared, queue_size=self._args.beam)
+                astar = DiscourseBeamSearch(heuristic=heuristic, shared=search_shared, queue_size=self._args.beam)
             else:
-                astar = DiscourseSearch(heuristic=self._heuristic,shared=search_shared) 
+                astar = DiscourseSearch(heuristic=heuristic, shared=search_shared)
             #genall = astar.launch(DiscData(accessible=[to_link[0]], tolink=to_link[1:]),
             # sentence heads + RFC accessbile 
             # FIXME: this is wrong for everything but intra_heads where accessible should be empty

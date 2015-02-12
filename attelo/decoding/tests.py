@@ -7,7 +7,7 @@ from __future__ import print_function
 import sys
 import unittest
 
-
+from ..args import DEFAULT_ASTAR_ARGS
 from ..edu import EDU
 from . import astar, greedy, mst
 from .util import get_sorted_edus, get_prob_map, order_by_sentence
@@ -73,7 +73,13 @@ class AstarTest(DecoderTest):
 
     def _test_nbest(self, nbest):
         'n-best A* search'
-        decoder = astar.AstarDecoder(astar.AstarArgs(nbest=nbest))
+        astar_args = astar.AstarArgs(heuristics=DEFAULT_ASTAR_ARGS.heuristics,
+                                     # FIXME full broken
+                                     rfc=astar.RfcConstraint.simple,
+                                     beam=DEFAULT_ASTAR_ARGS.beam,
+                                     nbest=nbest,
+                                     use_prob=DEFAULT_ASTAR_ARGS.use_prob)
+        decoder = astar.AstarDecoder(astar_args)
         soln = decoder.decode(self.prob_distrib)
         self.assertEqual(nbest, len(soln))
         return soln
